@@ -3,8 +3,18 @@ import math
 
 
 # Bring data on patient samples from the diagnosis machine to the laboratory with enough molecules to produce medicine!
+class Module:
+    EMPTY = ''
+    START_POS = 'START_POS'
+    SAMPLES = 'SAMPLES'
+    DIAGNOSIS = 'DIAGNOSIS'
+    MOLECULES = 'MOLECULES'
+    LABORATORY = 'LABORATORY'
+
+
 class Storage:
-    MAX_STORAGE_NUM = 10
+    MAX_TOTAL_STORAGE_NUM = 10
+    MAX_SINGEL_STORAGE_NUM = 5
 
     def __init__(self):
         self.storage_a = 0
@@ -17,11 +27,11 @@ class Storage:
         return self.storage_a + self.storage_b + self.storage_c + self.storage_d + self.storage_e
 
     def get_unused_storage(self):
-        return self.MAX_STORAGE_NUM - (
+        return self.MAX_TOTAL_STORAGE_NUM - (
                 self.storage_a + self.storage_b + self.storage_c + self.storage_d + self.storage_e)
 
     def is_full(self):
-        return self.get_used_storage() == self.MAX_STORAGE_NUM
+        return self.get_used_storage() == self.MAX_TOTAL_STORAGE_NUM
 
     def is_empty(self):
         return self.get_used_storage() == 0
@@ -59,7 +69,7 @@ class ScienceProject:
         self.expertise.expertise_e = expertise_e
         self.total_expertise = expertise_a + expertise_b + expertise_c + expertise_d + expertise_e
 
-        print("Debug: new a science project, project_id", self.project_id,
+        print("new a science project, project_id", self.project_id,
               ",expertise_a", self.expertise.expertise_a,
               ",expertise_b", self.expertise.expertise_b, ",expertise_c", self.expertise.expertise_c, ",expertise_d ",
               self.expertise.expertise_d,
@@ -84,17 +94,6 @@ class Sample:
 
         self.deleted_flag = False
         self.uploaded_flag = False
-
-        print("Debug: new a sample, id", self.sample_id,
-              ",expertise_gain", self.expertise_gain,
-              ",total cost", self.total_cost,
-              ",health", self.health,
-              ",cost_a ", self.cost_a,
-              ",cost_b ", self.cost_b,
-              ",cost_c ", self.cost_c,
-              ",cost_d ", self.cost_d,
-              ",cost_e ", self.cost_e,
-              file=sys.stderr)
 
     def update_sample(self, sample):
         self.carried_by = sample.carried_by
@@ -141,14 +140,14 @@ class Sample:
 
     def should_be_uploaded(self, robot):
         if self.has_been_diagnosed() is False:
-            print("Debug: please diagnose sample id",
+            print("please diagnose sample id",
                   self.sample_id,
                   "before checking it should be uploaded or not", file=sys.stderr)
             return False
         else:
             needed_storage = robot.get_sample_needed_storage(self)
 
-            if needed_storage.get_used_storage() > Storage.MAX_STORAGE_NUM \
+            if needed_storage.get_used_storage() > Storage.MAX_TOTAL_STORAGE_NUM \
                     or needed_storage.storage_a > self.game.get_max_molecuse_a() \
                     or needed_storage.storage_b > self.game.get_max_molecuse_b() \
                     or needed_storage.storage_c > self.game.get_max_molecuse_c() \
@@ -174,18 +173,16 @@ class SampleList:
         for i in range(len(self.sample_list)):
             if sample.total_cost < self.sample_list[i].total_cost:
                 self.sample_list.insert(i, sample)
-                print("Debug: insert sample id", sample.sample_id, "at ", i, " in carrying sample", file=sys.stderr)
                 return
+            elif sample.total_cost == self.sample_list[i].total_cost:
+                if sample.health > self.sample_list[i].health:
+                    self.sample_list.insert(i, sample)
+                    return
 
-        print("Debug: append sample id", sample.sample_id, "in carrying sample", file=sys.stderr)
         self.sample_list.append(sample)
 
-    def delete_sample(self, sample_id):
-        for i in range(len(self.sample_list)):
-            if sample_id == self.sample_list[i].sample_id:
-                self.sample_list.remove(self.sample_list[i])
-                print("Debug: sample id", sample_id, " has been deleted from carrying sample", file=sys.stderr)
-                return
+    def delete_all_sample(self):
+        self.sample_list = []
 
     def is_full(self):
         return len(self.sample_list) == self.MAX_CARRIED_SAMPLE_NUM
@@ -213,13 +210,13 @@ class SampleList:
         for i in range(len(self.sample_list)):
             if sample_id == self.sample_list[i].sample_id:
                 self.sample_list[i].mark_sample_to_be_deleted()
-                print("Debug: sample id", sample_id, " mark as need to be deleted", file=sys.stderr)
+                print("sample id", sample_id, " mark as need to be deleted", file=sys.stderr)
                 return
 
     def get_undiagnosed_sample_id(self):
         for i in range(len(self.sample_list)):
             if self.sample_list[i].has_been_diagnosed() is False:
-                print("Debug: find an undiagnosed sample id", self.sample_list[i].sample_id, " in carrying sample",
+                print("find an undiagnosed sample id", self.sample_list[i].sample_id, " in carrying sample",
                       file=sys.stderr)
                 return self.sample_list[i].sample_id
 
@@ -229,30 +226,67 @@ class SampleList:
         for i in range(len(self.sample_list)):
             if self.sample_list[i].sample_id == sample_id \
                     and self.sample_list[i].has_been_diagnosed():
-                print("Debug: sample id", self.sample_list[i].sample_id, "is undiagnosed in carrying sample",
+                print("sample id", self.sample_list[i].sample_id, "is undiagnosed in carrying sample",
                       file=sys.stderr)
                 return True
 
         return False
 
-    def get_being_uploaded_sample_id(self, robot):
+    def get_single_molecuse_sample(self):
         for i in range(len(self.sample_list)):
-            if self.sample_list[i].should_be_uploaded(robot):
-                print("Debug: find an being uploaded sample id", self.sample_list[i].sample_id,
+            if self.sample_list[i].total_cost == self.sample_list[i].cost_a:
+                return self.sample_list[i]
+            if self.sample_list[i].total_cost == self.sample_list[i].cost_b:
+                return self.sample_list[i]
+            if self.sample_list[i].total_cost == self.sample_list[i].cost_c:
+                return self.sample_list[i]
+            if self.sample_list[i].total_cost == self.sample_list[i].cost_d:
+                return self.sample_list[i]
+            if self.sample_list[i].total_cost == self.sample_list[i].cost_e:
+                return self.sample_list[i]
+        return None
+
+    def get_being_uploaded_sample_id(self, human_robot, ai_robot):
+        for i in range(len(self.sample_list)):
+            if self.sample_list[i].should_be_uploaded(human_robot):
+                print("find an being uploaded sample id", self.sample_list[i].sample_id,
                       " in carrying sample", file=sys.stderr)
                 return self.sample_list[i].sample_id
+
+            # human_needed_storage = human_robot.get_sample_needed_storage(self.sample_list[i])
+            # if self.sample_list[i].game.get_available_molecuse_a() == 0 \
+            #         and human_needed_storage.storage_a > 0 \
+            #         and ai_robot.may_spend_storage('A', human_needed_storage.storage_a) is False:
+            #     return self.sample_list[i].sample_id
+            # if self.sample_list[i].game.get_available_molecuse_b() == 0 \
+            #         and human_needed_storage.storage_b > 0 \
+            #         and ai_robot.may_spend_storage('B', human_needed_storage.storage_b) is False:
+            #     return self.sample_list[i].sample_id
+            # if self.sample_list[i].game.get_available_molecuse_c() == 0 \
+            #         and human_needed_storage.storage_c > 0 \
+            #         and ai_robot.may_spend_storage('C', human_needed_storage.storage_c) is False:
+            #     return self.sample_list[i].sample_id
+            # if self.sample_list[i].game.get_available_molecuse_d() == 0 \
+            #         and human_needed_storage.storage_d > 0 \
+            #         and ai_robot.may_spend_storage('D', human_needed_storage.storage_d) is False:
+            #     return self.sample_list[i].sample_id
+            # if self.sample_list[i].game.get_available_molecuse_e() == 0 \
+            #         and human_needed_storage.storage_e > 0 \
+            #         and ai_robot.may_spend_storage('E', human_needed_storage.storage_e) is False:
+            #     return self.sample_list[i].sample_id
+
         return -1
 
 
 class Robot:
-    TYPE_AI = 0
-    TYPE_HUMAN = 1
+    TYPE_AI = 'AI_ROBOT'
+    TYPE_HUMAN = 'HUMAN_ROBOT'
 
     def __init__(self, game, robot_type):
         self.game = game
         self.robot_type = robot_type
         self.previous_target = ''
-        self.current_target = 'START_POS'
+        self.current_target = Module.START_POS
         self.carrying_sample = SampleList()
         self.enough_molecuses_sample_id_list = []
 
@@ -290,10 +324,10 @@ class Robot:
             if self.carrying_sample.get_sample_by_index(i).has_been_marked_as_deleted():
                 self.delete_sample_id_from_enough_molecuse_sample_list(
                     self.carrying_sample.get_sample_by_index(i).sample_id)
-                self.carrying_sample.delete_sample(self.carrying_sample.get_sample_by_index(i).sample_id)
-                i = 0
-            else:
-                i = i + 1
+
+            i = i + 1
+
+        self.carrying_sample.delete_all_sample()
 
     def get_consumed_storage(self):
         consumed_storage = Storage()
@@ -353,13 +387,16 @@ class Robot:
     def add_sample_id_to_enough_molecuse_sample_list(self, sample_id):
         if self.is_in_enough_molecuses_sample_id_list(sample_id) is False:
             self.enough_molecuses_sample_id_list.append(sample_id)
-            print("DEBUG: add sample id", sample_id, "to enough molecuse sample list", file=sys.stderr)
+            if self.robot_type == self.TYPE_HUMAN:
+                print("DEBUG: " + self.robot_type + " add sample id",
+                      sample_id, "to enough molecuse sample list", file=sys.stderr)
 
     def delete_sample_id_from_enough_molecuse_sample_list(self, sample_id):
         for i in range(len(self.enough_molecuses_sample_id_list)):
             if sample_id == self.enough_molecuses_sample_id_list[i]:
                 self.enough_molecuses_sample_id_list.remove(sample_id)
-                print("DEBUG: delete sample id", sample_id, "from enough molecuse sample list", file=sys.stderr)
+                print("DEBUG: " + self.robot_type + " delete sample id",
+                      sample_id, "from enough molecuse sample list", file=sys.stderr)
                 return
 
     def get_enough_molecuses_sample_size(self):
@@ -411,6 +448,39 @@ class Robot:
 
         return needed_storage
 
+    def may_spend_storage(self, storage_type, storage_number):
+        if self.current_target != Module.MOLECULES and self.current_target != Module.LABORATORY:
+            return True
+
+        for i in range(self.carrying_sample.size()):
+            sample = self.carrying_sample.get_sample_by_index(i)
+            if storage_type == 'A' \
+                    and sample.cost_a > 0 \
+                    and self.storage.storage_a > 0 \
+                    and (sample.cost_a - self.expertise.expertise_a - self.storage.storage_a > 0):
+                return True
+            if storage_type == 'B' \
+                    and sample.cost_b > 0 \
+                    and self.storage.storage_b > 0 \
+                    and (sample.cost_b - self.expertise.expertise_b - self.storage.storage_b > 0):
+                return True
+            if storage_type == 'C' \
+                    and sample.cost_c > 0 \
+                    and self.storage.storage_c > 0 \
+                    and (sample.cost_c - self.expertise.expertise_c - self.storage.storage_c > 0):
+                return True
+            if storage_type == 'D' \
+                    and sample.cost_d > 0 \
+                    and self.storage.storage_d > 0 \
+                    and (sample.cost_d - self.expertise.expertise_d - self.storage.storage_d > 0):
+                return True
+            if storage_type == 'E' \
+                    and sample.cost_e > 0 \
+                    and self.storage.storage_e > 0 \
+                    and (sample.cost_e - self.expertise.expertise_e - self.storage.storage_e > 0):
+                return True
+        return False
+
     def get_one_enough_molecules_sample_id(self):
         if len(self.enough_molecuses_sample_id_list) > 0:
             return self.enough_molecuses_sample_id_list[0]
@@ -421,12 +491,13 @@ class Robot:
         for i in range(self.carrying_sample.size()):
             sample = self.carrying_sample.get_sample_by_index(i)
             if self.has_sample_got_enough_molecuse(sample) is False:
-                print("Debug: find sample id", self.carrying_sample.get_sample_by_index(i).sample_id,
+                print("DEBUG: " + self.robot_type + " find sample id",
+                      self.carrying_sample.get_sample_by_index(i).sample_id,
                       "should fetch molecuses ", file=sys.stderr)
 
                 return sample.sample_id
 
-        print("Debug: Not found sample should fetch molecuses ", file=sys.stderr)
+        print("DEBUG: " + self.robot_type + " Not found sample should fetch molecuses ", file=sys.stderr)
         return -1
 
 
@@ -460,14 +531,14 @@ class Game:
             if self.human_robot.has_sample_got_enough_molecuse(self.cloud_sample.get_sample_by_index(i)):
                 self.enough_molecuses_sample_id_list_for_human_robot.append(
                     self.cloud_sample.get_sample_by_index(i).sample_id)
-                print("DEBUG: add sample id", self.cloud_sample.get_sample_by_index(i).sample_id,
-                      "to cloud enough molecuse sample list", file=sys.stderr)
+                print("GAME find sample id", self.cloud_sample.get_sample_by_index(i).sample_id,
+                      "got enough molecuse for human robot", file=sys.stderr)
 
     def clean_up(self):
         self.turn = self.turn + 1
         print("DEBUG:  game turn =", self.turn, file=sys.stderr)
 
-        return
+        self.cloud_sample.delete_all_sample()
 
     def add_science_project(self, science_project):
         self.scienceProjects.append(science_project)
@@ -508,7 +579,7 @@ class Game:
     def get_one_enough_molecules_sample_id_in_cloud_for_human_robot(self):
         if len(self.enough_molecuses_sample_id_list_for_human_robot) > 0:
             return self.enough_molecuses_sample_id_list_for_human_robot[0]
-        print("Debug: No sample can has enough molecuses in uploaded sample", file=sys.stderr)
+        print("No sample can has enough molecuses in uploaded sample", file=sys.stderr)
         return None
 
     def can_cloud_sample_fetch_enough_molecules_for_human_robot(self, sample_id):
@@ -612,38 +683,52 @@ game.set_ai_robot(ai_robot)
 
 
 def steps(from_position, to_position):
-    if from_position == 'START_POS' and to_position == 'SAMPLES':
+    if from_position == Module.EMPTY or to_position == Module.EMPTY:
+        return 0
+    elif from_position == Module.START_POS and to_position == Module.SAMPLES:
         return 2
-    elif from_position == 'START_POS' and to_position == 'DIAGNOSIS':
+    elif from_position == Module.START_POS and to_position == Module.DIAGNOSIS:
         return 2
-    elif from_position == 'START_POS' and to_position == 'MOLECULES':
+    elif from_position == Module.START_POS and to_position == Module.MOLECULES:
         return 2
-    elif from_position == 'START_POS' and to_position == 'LABORATORY':
+    elif from_position == Module.START_POS and to_position == Module.LABORATORY:
         return 2
-    elif from_position == 'SAMPLES' and to_position == 'DIAGNOSIS':
+    elif from_position == Module.START_POS and to_position == Module.START_POS:
+        return 0
+    elif from_position == Module.SAMPLES and to_position == Module.DIAGNOSIS:
         return 3
-    elif from_position == 'SAMPLES' and to_position == 'MOLECULES':
+    elif from_position == Module.SAMPLES and to_position == Module.MOLECULES:
         return 3
-    elif from_position == 'SAMPLES' and to_position == 'LABORATORY':
+    elif from_position == Module.SAMPLES and to_position == Module.LABORATORY:
         return 3
-    elif from_position == 'DIAGNOSIS' and to_position == 'SAMPLES':
+    elif from_position == Module.SAMPLES and to_position == Module.SAMPLES:
+        return 0
+    elif from_position == Module.DIAGNOSIS and to_position == Module.SAMPLES:
         return 3
-    elif from_position == 'DIAGNOSIS' and to_position == 'MOLECULES':
+    elif from_position == Module.DIAGNOSIS and to_position == Module.MOLECULES:
         return 3
-    elif from_position == 'DIAGNOSIS' and to_position == 'LABORATORY':
+    elif from_position == Module.DIAGNOSIS and to_position == Module.LABORATORY:
         return 4
-    elif from_position == 'MOLECULES' and to_position == 'SAMPLES':
+    elif from_position == Module.DIAGNOSIS and to_position == Module.DIAGNOSIS:
+        return 0
+    elif from_position == Module.MOLECULES and to_position == Module.SAMPLES:
         return 3
-    elif from_position == 'MOLECULES' and to_position == 'DIAGNOSIS':
+    elif from_position == Module.MOLECULES and to_position == Module.DIAGNOSIS:
         return 3
-    elif from_position == 'MOLECULES' and to_position == 'LABORATORY':
+    elif from_position == Module.MOLECULES and to_position == Module.LABORATORY:
         return 3
-    elif from_position == 'LABORATORY' and to_position == 'SAMPLES':
+    elif from_position == Module.MOLECULES and to_position == Module.MOLECULES:
+        return 0
+    elif from_position == Module.LABORATORY and to_position == Module.SAMPLES:
         return 3
-    elif from_position == 'LABORATORY' and to_position == 'DIAGNOSIS':
+    elif from_position == Module.LABORATORY and to_position == Module.DIAGNOSIS:
         return 4
-    elif from_position == 'LABORATORY' and to_position == 'MOLECULES':
+    elif from_position == Module.LABORATORY and to_position == Module.MOLECULES:
         return 3
+    elif from_position == Module.LABORATORY and to_position == Module.LABORATORY:
+        return 0
+    else:
+        return 0
 
 
 def check_ai_robot_molecuse_spent():
@@ -658,7 +743,7 @@ def should_jump_to_next_turn():
     if my_robot.eta == 0:
         return False
     else:
-        print("Debug: my_robot should do nothing in this turn", file=sys.stderr)
+        print("my_robot should do nothing in this turn", file=sys.stderr)
         print("go go go")
         return True
 
@@ -730,19 +815,19 @@ def can_fetch_enough_molecuses(sample_id):
     enough_molecuse_e = True
 
     if need_storage.storage_a > 0 \
-        and game.get_available_molecuse_a() < need_storage.storage_a:
+            and game.get_available_molecuse_a() < need_storage.storage_a:
         enough_molecuse_a = False
     if need_storage.storage_b > 0 \
-        and game.get_available_molecuse_b() < need_storage.storage_b:
+            and game.get_available_molecuse_b() < need_storage.storage_b:
         enough_molecuse_b = False
     if need_storage.storage_c > 0 \
-        and game.get_available_molecuse_c() < need_storage.storage_c:
+            and game.get_available_molecuse_c() < need_storage.storage_c:
         enough_molecuse_c = False
     if need_storage.storage_d > 0 \
-        and game.get_available_molecuse_d() < need_storage.storage_d:
+            and game.get_available_molecuse_d() < need_storage.storage_d:
         enough_molecuse_d = False
     if need_storage.storage_e > 0 \
-        and game.get_available_molecuse_e() < need_storage.storage_e:
+            and game.get_available_molecuse_e() < need_storage.storage_e:
         enough_molecuse_e = False
 
     if enough_molecuse_a \
@@ -781,13 +866,66 @@ def can_fetch_more_molecules(sample_id):
         return False
 
 
+def get_sample_size_which_can_fetch_enough_molecuses():
+    global my_robot
+    global ai_robot
+    global game
+
+    count = 0
+
+    for i in range(my_robot.carrying_sample.size()):
+        sample = my_robot.carrying_sample.get_sample_by_index(i)
+        if can_fetch_enough_molecuses(sample.sample_id):
+            count = count + 1
+
+    return count
+
+
+def need_to_upload_sample_for_enough_sample_downloading():
+    global my_robot
+    global ai_robot
+    global game
+
+    empty_sample_number = SampleList.MAX_CARRIED_SAMPLE_NUM - my_robot.carrying_sample.size()
+    real_no_used_sample_number = my_robot.carrying_sample.size() - my_robot.get_enough_molecuses_sample_size()
+
+    if my_robot.carrying_sample.is_empty():
+        return False
+
+    if game.get_enough_molecules_sample_size_in_cloud() > 0:
+        if (game.get_enough_molecules_sample_size_in_cloud() - empty_sample_number) > 0 \
+                and real_no_used_sample_number > 0:
+            return True
+    return False
+
+
+def need_to_upload_sample_for_can_fetch_enough_sample_downloading():
+    global my_robot
+    global ai_robot
+    global game
+    empty_sample_number = SampleList.MAX_CARRIED_SAMPLE_NUM - my_robot.carrying_sample.size()
+    real_no_used_sample_number = my_robot.carrying_sample.size() \
+                                 - my_robot.get_enough_molecuses_sample_size() \
+                                 - get_sample_size_which_can_fetch_enough_molecuses()
+
+    if my_robot.carrying_sample.is_empty():
+        return False
+
+    if game.get_sample_size_which_can_get_enough_molecuses_from_cloud() > 0:
+        if (game.get_sample_size_which_can_get_enough_molecuses_from_cloud() - empty_sample_number) > 0 \
+                and real_no_used_sample_number > 0:
+            return True
+
+    return False
+
+
 def need_to_download_enough_molecuses_sample_from_cloud():
     global my_robot
     global ai_robot
     global game
 
-    if game.get_enough_molecules_sample_size_in_cloud() != 0 \
-            and my_robot.get_enough_molecuses_sample_size() != SampleList.MAX_CARRIED_SAMPLE_NUM:
+    if my_robot.carrying_sample.is_full() is False \
+            and game.get_enough_molecules_sample_size_in_cloud() != 0:
         return True
 
     return False
@@ -802,10 +940,8 @@ def need_to_download_which_can_get_enough_molecuses_sample_from_cloud():
         return False
 
     if my_robot.carrying_sample.is_full() is False \
-            or (my_robot.carrying_sample.is_full()
-                and my_robot.get_enough_molecuses_sample_size() != SampleList.MAX_CARRIED_SAMPLE_NUM):
-        if game.get_sample_size_which_can_get_enough_molecuses_from_cloud() != 0:
-            return True
+            and game.get_sample_size_which_can_get_enough_molecuses_from_cloud() != 0:
+        return True
     return False
 
 
@@ -880,26 +1016,84 @@ def get_sample_id_which_can_fetch_more_molecuses():
     return -1
 
 
+def get_type_of_molecuse_to_block_ai_robot():
+    global my_robot
+    global ai_robot
+    global game
+
+    if my_robot.storage.is_full() or my_robot.expertise.get_total_expertise() < 7:
+        return ''
+
+    sample = ai_robot.carrying_sample.get_single_molecuse_sample()
+    if sample is None:
+        return ''
+
+    needed_storage = ai_robot.get_sample_needed_storage(sample)
+    if needed_storage.get_used_storage == 0:
+        return ''
+
+    my_robot_step_to_module = steps(my_robot.current_target, Module.MOLECULES)
+    ai_robot_step_to_module = steps(ai_robot.current_target, Module.MOLECULES)
+    my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_a() - needed_storage.storage_a + 1
+    ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_a
+
+    if 0 < needed_storage.storage_a <= game.get_available_molecuse_a():
+        if my_robot.storage.storage_a + (
+                game.get_available_molecuse_a() - needed_storage.storage_a + 1) <= game.get_max_molecuse_a() \
+                and my_robot.storage.get_used_storage() + (
+                    game.get_available_molecuse_a() - needed_storage.storage_a + 1) <= Storage.MAX_TOTAL_STORAGE_NUM \
+                and my_robot_execution_step <= ai_robot_execution_step:
+            return 'A'
+    if 0 < needed_storage.storage_b <= game.get_available_molecuse_b():
+        if my_robot.storage.storage_b + (
+                game.get_available_molecuse_b() - needed_storage.storage_b + 1) <= game.get_max_molecuse_b() \
+                and my_robot.storage.get_used_storage() + (
+                    game.get_available_molecuse_b() - needed_storage.storage_b + 1) <= Storage.MAX_TOTAL_STORAGE_NUM \
+                and my_robot_execution_step <= ai_robot_execution_step:
+            return 'B'
+    if 0 < needed_storage.storage_c <= game.get_available_molecuse_c():
+        if my_robot.storage.storage_c + (
+                game.get_available_molecuse_c() - needed_storage.storage_c + 1) <= game.get_max_molecuse_c() \
+                and my_robot.storage.get_used_storage() + (
+                    game.get_available_molecuse_c() - needed_storage.storage_c + 1) <= Storage.MAX_TOTAL_STORAGE_NUM \
+                and my_robot_execution_step <= ai_robot_execution_step:
+            return 'C'
+    if 0 < needed_storage.storage_d <= game.get_available_molecuse_d():
+        if my_robot.storage.storage_d + (
+                game.get_available_molecuse_d() - needed_storage.storage_d + 1) <= game.get_max_molecuse_d() \
+                and my_robot.storage.get_used_storage() + (
+                    game.get_available_molecuse_d() - needed_storage.storage_d + 1) <= Storage.MAX_TOTAL_STORAGE_NUM \
+                and my_robot_execution_step <= ai_robot_execution_step:
+            return 'D'
+    if 0 < needed_storage.storage_e <= game.get_available_molecuse_e():
+        if my_robot.storage.storage_e + (
+                game.get_available_molecuse_e() - needed_storage.storage_e + 1) <= game.get_max_molecuse_e() \
+                and my_robot.storage.get_used_storage() + (
+                    game.get_available_molecuse_e() - needed_storage.storage_e + 1) <= Storage.MAX_TOTAL_STORAGE_NUM \
+                and my_robot_execution_step <= ai_robot_execution_step:
+            return 'E'
+
+    return ''
+
+
 def generate_rank():
     global my_robot
     global ai_robot
     global game
 
-    if my_robot.expertise.get_total_expertise() >= 14:
-        if my_robot.carrying_sample.size() == 1 and my_robot.storage.get_used_storage() >= 7:
+    unconsumed_storage = my_robot.get_unconsumed_storage()
+
+    if my_robot.expertise.get_total_expertise() >= 10:
+        if my_robot.carrying_sample.size() == 1 and unconsumed_storage.get_used_storage() >= 7:
             return 1
-        elif my_robot.carrying_sample.size() == 1 and my_robot.storage.get_used_storage() >= 4:
-            return 2
-        elif my_robot.carrying_sample.size() == 2 and my_robot.storage.get_used_storage() >= 7:
-            return 1
-        elif my_robot.carrying_sample.size() == 2 and my_robot.storage.get_used_storage() >= 4:
+        elif my_robot.carrying_sample.size() == 2 and unconsumed_storage.get_used_storage() >= 4:
             return 2
         else:
             return 3
-    elif my_robot.expertise.get_total_expertise() >= 11:
-        if my_robot.carrying_sample.size() == 1 and my_robot.storage.get_used_storage() >= 7:
+    elif my_robot.expertise.get_total_expertise() >= 7:
+        if my_robot.carrying_sample.size() == 1 and unconsumed_storage.get_used_storage() >= 7:
             return 1
-        elif my_robot.carrying_sample.size() == 2 and my_robot.storage.get_used_storage() >= 7:
+        elif my_robot.carrying_sample.size() == 2 and unconsumed_storage.get_used_storage() >= 4:
             return 1
         else:
             return 2
@@ -935,23 +1129,25 @@ def go_to_samples():
     sample_id_can_fetch_enough_molecuse = get_sample_id_which_can_fetch_enough_molecuses()
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
     enough_molecuse_sample_size = my_robot.get_enough_molecuses_sample_size()
+    type_of_molecuse_to_block_ai_robot = get_type_of_molecuse_to_block_ai_robot()
 
-    if my_robot.current_target == 'START_POS':
+    if my_robot.current_target == Module.START_POS:
         # game start
         print("DEBUG: my robot go to SAMPLES", file=sys.stderr)
         print("GOTO SAMPLES")
-    elif my_robot.previous_target == 'LABORATORY' and my_robot.current_target == 'LABORATORY':
-        if sample_id_can_fetch_enough_molecuse == -1 \
-                and my_robot.get_enough_molecuses_sample_size() == 0:
+    elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.LABORATORY:
+        if sample_id_should_fetch_molecuse == -1 \
+                and my_robot.get_enough_molecuses_sample_size() == 0 \
+                and get_type_of_molecuse_to_block_ai_robot() == '':
             print("DEBUG: my robot go to SAMPLES due to all enough sample are extracted "
                   "and NO sample can get enough molecuse", file=sys.stderr)
             print("GOTO SAMPLES")
-    elif my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS':
+    elif my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS:
         if my_robot.carrying_sample.is_empty() \
                 and need_to_download_sample_from_cloud() is False:
             print("DEBUG: my robot go to SAMPLES dut to carrying sample empty", file=sys.stderr)
             print("GOTO SAMPLES")
-    elif my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'MOLECULES':
+    elif my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.MOLECULES:
         if sample_id_should_fetch_molecuse != -1:
             if can_fetch_more_molecules(sample_id_should_fetch_molecuse) is False:
                 if my_robot.storage.is_full() and my_robot.carrying_sample.is_full() is False:
@@ -960,10 +1156,16 @@ def go_to_samples():
                     print("GOTO SAMPLES")
         else:
             if my_robot.carrying_sample.is_full() is False \
-                    and enough_molecuse_sample_size == 0:
+                    and enough_molecuse_sample_size == 0 \
+                    and type_of_molecuse_to_block_ai_robot == '':
                 print(
                     "DEBUG: my robot go to SAMPLES dut to carrying sample not full and no more molecuses can be fetched",
                     file=sys.stderr)
+                print("GOTO SAMPLES")
+            elif my_robot.carrying_sample.is_empty() \
+                    and get_type_of_molecuse_to_block_ai_robot() == '':
+                print("DEBUG: my robot go to SAMPLES dut to carrying sample empty",
+                      file=sys.stderr)
                 print("GOTO SAMPLES")
 
 
@@ -973,11 +1175,11 @@ def go_to_diagnosis():
 
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
 
-    if my_robot.previous_target == 'SAMPLES' and my_robot.current_target == 'SAMPLES':
+    if my_robot.previous_target == Module.SAMPLES and my_robot.current_target == Module.SAMPLES:
         if my_robot.carrying_sample.is_full():
             print("DEBUG: my robot go to DIAGNOSIS", file=sys.stderr)
             print("GOTO DIAGNOSIS")
-    elif my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'MOLECULES':
+    elif my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.MOLECULES:
         if my_robot.get_enough_molecuses_sample_size() == 0:
             if sample_id_should_fetch_molecuse == -1:
                 if my_robot.carrying_sample.is_full():
@@ -992,33 +1194,42 @@ def go_to_diagnosis():
 def go_to_molecules():
     global my_robot
     global ai_robot
+    global game
 
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
     sample_id_can_fetch_enough_molecuse = get_sample_id_which_can_fetch_enough_molecuses()
+    type_of_molecuse_to_block_ai_robot = get_type_of_molecuse_to_block_ai_robot()
 
-    if my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS':
-        if my_robot.carrying_sample.is_full():
-            if my_robot.carrying_sample.get_undiagnosed_sample_id() == -1 \
-                    and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot) == -1 \
+    if my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS:
+        if my_robot.carrying_sample.get_undiagnosed_sample_id() == -1 \
+                and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot, ai_robot) == -1\
+                and need_to_upload_sample_for_can_fetch_enough_sample_downloading() is False \
+                and need_to_upload_sample_for_enough_sample_downloading() is False:
+            if my_robot.carrying_sample.is_full() \
                     and my_robot.get_enough_molecuses_sample_size() < my_robot.carrying_sample.size() \
                     and sample_id_should_fetch_molecuse != -1 \
                     and need_to_download_sample_from_cloud() is False:
                 print("DEBUG: my robot go to MOLECULES due to due to one of carrying sample can fetch molecuse",
                       file=sys.stderr)
                 print("GOTO MOLECULES")
-        if my_robot.carrying_sample.is_full() is False \
-                and my_robot.carrying_sample.is_empty() is False \
-                and sample_id_should_fetch_molecuse != -1 \
-                and my_robot.carrying_sample.get_undiagnosed_sample_id() == -1 \
-                and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot) == -1 \
-                and need_to_download_sample_from_cloud() is False:
-            print("DEBUG: my robot go to MOLECULES due to due to NO sample can be download from cloud",
-                  file=sys.stderr)
-            print("GOTO MOLECULES")
-    elif my_robot.previous_target == 'LABORATORY' and my_robot.current_target == 'LABORATORY':
-        if sample_id_can_fetch_enough_molecuse != -1 \
+            elif my_robot.carrying_sample.is_full() is False \
+                    and my_robot.carrying_sample.is_empty() is False \
+                    and sample_id_should_fetch_molecuse != -1 \
+                    and my_robot.carrying_sample.get_undiagnosed_sample_id() == -1 \
+                    and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot, ai_robot) == -1 \
+                    and need_to_download_sample_from_cloud() is False:
+                print("DEBUG: my robot go to MOLECULES due to due to NO sample can be download from cloud",
+                      file=sys.stderr)
+                print("GOTO MOLECULES")
+    elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.LABORATORY:
+        if sample_id_should_fetch_molecuse != -1 \
                 and my_robot.get_enough_molecuses_sample_size() == 0:
             print("DEBUG: my robot go to MOLECULES due to sample can fetch molecuse and NO sample can be extracted",
+                  file=sys.stderr)
+            print("GOTO MOLECULES")
+        elif get_type_of_molecuse_to_block_ai_robot() != '' \
+                and my_robot.get_enough_molecuses_sample_size() == 0:
+            print("DEBUG: my robot go to MOLECULES due to can block ai robot and NO sample can be extracted",
                   file=sys.stderr)
             print("GOTO MOLECULES")
 
@@ -1026,24 +1237,32 @@ def go_to_molecules():
 def go_to_laboratory():
     global my_robot
     global ai_robot
+    global game
 
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
+    type_of_molecuse_to_block_ai_robot = get_type_of_molecuse_to_block_ai_robot()
 
-    if my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'MOLECULES':
+    if my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.MOLECULES:
         if sample_id_should_fetch_molecuse == -1:
             if my_robot.get_enough_molecuses_sample_size() > 0:
-                print("DEBUG: my robot go to LABORATORY due to No sample can get molecuse", file=sys.stderr)
-                print("GOTO LABORATORY")
-
-    elif my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'MOLECULES':
+                if my_robot.carrying_sample.is_full():
+                    print("DEBUG: my robot go to LABORATORY due to No sample can get molecuse", file=sys.stderr)
+                    print("GOTO LABORATORY")
+                elif type_of_molecuse_to_block_ai_robot == '':
+                    print("DEBUG: my robot go to LABORATORY due to No sample can get molecuse", file=sys.stderr)
+                    print("GOTO LABORATORY")
+    elif my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.MOLECULES:
         if sample_id_should_fetch_molecuse == -1 \
                 and my_robot.get_enough_molecuses_sample_size() > 0:
             print("DEBUG: my robot go to LABORATORY", file=sys.stderr)
             print("GOTO LABORATORY")
-    elif (my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS') \
-            or (my_robot.previous_target == 'SAMPLES' and my_robot.current_target == 'DIAGNOSIS'):
+    elif (my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS) \
+            or (my_robot.previous_target == Module.SAMPLES and my_robot.current_target == Module.DIAGNOSIS):
         if my_robot.carrying_sample.get_undiagnosed_sample_id() == -1 \
-                and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot) == -1:
+                and my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot, ai_robot) == -1 \
+                and need_to_upload_sample_for_enough_sample_downloading() is False \
+                and need_to_upload_sample_for_can_fetch_enough_sample_downloading() is False \
+                and need_to_download_sample_from_cloud() is False:
             if my_robot.get_enough_molecuses_sample_size() == my_robot.carrying_sample.size() \
                     and my_robot.carrying_sample.size() > 0 \
                     and need_to_download_sample_from_cloud() is False:
@@ -1058,7 +1277,7 @@ def go_to_laboratory():
             elif my_robot.get_enough_molecuses_sample_size() > 0 \
                     and my_robot.storage.is_full():
                 print("DEBUG: my robot go to LABORATORY due to some sample have enough molecuses "
-                      "and other sample can not fetch molecuse", file=sys.stderr)
+                      "and storage full", file=sys.stderr)
                 print("GOTO LABORATORY")
 
 
@@ -1069,23 +1288,23 @@ def get_rank():
 
     rank = generate_rank()
 
-    if my_robot.previous_target == 'START_POS':
+    if my_robot.previous_target == Module.START_POS:
         if my_robot.carrying_sample.is_full() is False:
             print("DEBUG: my robot get rank", rank, file=sys.stderr)
             print("CONNECT ", rank)
-    elif my_robot.previous_target == 'SAMPLES' and my_robot.current_target == 'SAMPLES':
+    elif my_robot.previous_target == Module.SAMPLES and my_robot.current_target == Module.SAMPLES:
         if my_robot.carrying_sample.is_full() is False:
             print("DEBUG: my robot get rank", rank, file=sys.stderr)
             print("CONNECT ", rank)
-    elif my_robot.previous_target == 'LABORATORY' and my_robot.current_target == 'SAMPLES':
+    elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.SAMPLES:
         if my_robot.carrying_sample.is_full() is False:
             print("DEBUG: my robot get rank", rank, file=sys.stderr)
             print("CONNECT ", rank)
-    elif my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'SAMPLES':
+    elif my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.SAMPLES:
         if my_robot.carrying_sample.is_full() is False:
             print("DEBUG: my robot get rank", rank, file=sys.stderr)
             print("CONNECT ", rank)
-    elif my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'SAMPLES':
+    elif my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.SAMPLES:
         if my_robot.carrying_sample.is_full() is False:
             print("DEBUG: my robot get rank", rank, file=sys.stderr)
             print("CONNECT ", rank)
@@ -1095,12 +1314,12 @@ def get_diagnose():
     global my_robot
     global ai_robot
 
-    if my_robot.previous_target == 'SAMPLES' and my_robot.current_target == 'DIAGNOSIS':
+    if my_robot.previous_target == Module.SAMPLES and my_robot.current_target == Module.DIAGNOSIS:
         undiagnosed_sample_id = my_robot.carrying_sample.get_undiagnosed_sample_id()
         if undiagnosed_sample_id > -1:
             print("DEBUG: my robot diagnose sample id", undiagnosed_sample_id, file=sys.stderr)
             print("CONNECT ", undiagnosed_sample_id)
-    elif my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS':
+    elif my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS:
         undiagnosed_sample_id = my_robot.carrying_sample.get_undiagnosed_sample_id()
         if undiagnosed_sample_id > -1:
             print("DEBUG: my robot diagnose sample id", undiagnosed_sample_id, file=sys.stderr)
@@ -1112,40 +1331,45 @@ def upload_sample():
     global ai_robot
     global game
 
-    if (my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS') \
-            or (my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'DIAGNOSIS') \
-            or (my_robot.previous_target == 'SAMPLES' and my_robot.current_target == 'DIAGNOSIS'):
+    if (my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS) \
+            or (my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.DIAGNOSIS) \
+            or (my_robot.previous_target == Module.SAMPLES and my_robot.current_target == Module.DIAGNOSIS):
         sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
 
         if my_robot.carrying_sample.get_undiagnosed_sample_id() == -1:
-            uploaded_sample_id = my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot)
+            uploaded_sample_id = my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot, ai_robot)
             if uploaded_sample_id > -1:
                 print("DEBUG: my robot upload sample id", uploaded_sample_id, " due to its cost", file=sys.stderr)
                 my_robot.carrying_sample.mark_sample_need_to_be_deleted(uploaded_sample_id)
                 print("CONNECT ", uploaded_sample_id)
             elif uploaded_sample_id == -1:
                 if sample_id_should_fetch_molecuse == -1 \
-                        and my_robot.get_enough_molecuses_sample_size() == 0:
-                    if my_robot.carrying_sample.is_empty() is False:
-                        needed_upload_id = get_sample_id_which_can_not_fetch_enough_molecuses()
-                        if needed_upload_id != -1:
-                            print("DEBUG: my robot upload sample id", needed_upload_id,
-                                  "due to there are samples can not fetch enough molecuses",
-                                  file=sys.stderr)
-                            my_robot.carrying_sample.mark_sample_need_to_be_deleted(needed_upload_id)
-                            print("CONNECT ", needed_upload_id)
+                        and my_robot.get_enough_molecuses_sample_size() == 0 \
+                        and my_robot.carrying_sample.is_empty() is False \
+                        and (need_to_download_sample_from_cloud() is False):
+                    needed_upload_id = get_sample_id_which_can_not_fetch_enough_molecuses()
+                    if needed_upload_id != -1:
+                        print("DEBUG: my robot upload sample id", needed_upload_id,
+                              "due to there are samples can not fetch enough molecuses",
+                              file=sys.stderr)
+                        my_robot.carrying_sample.mark_sample_need_to_be_deleted(needed_upload_id)
+                        print("CONNECT ", needed_upload_id)
                 elif sample_id_should_fetch_molecuse != -1 \
-                        and need_to_download_enough_molecuses_sample_from_cloud():
+                        and (need_to_upload_sample_for_can_fetch_enough_sample_downloading()
+                             or need_to_upload_sample_for_enough_sample_downloading()):
                     print("DEBUG: my robot upload sample id", sample_id_should_fetch_molecuse,
-                          "due to enough molecuses sample in cloud", file=sys.stderr)
+                          "due to enough or can fetch enough molecuses sample in cloud", file=sys.stderr)
                     my_robot.carrying_sample.mark_sample_need_to_be_deleted(sample_id_should_fetch_molecuse)
                     print("CONNECT ", sample_id_should_fetch_molecuse)
-                elif sample_id_should_fetch_molecuse != -1 \
-                        and need_to_download_which_can_get_enough_molecuses_sample_from_cloud():
-                    print("DEBUG: my robot upload sample id", sample_id_should_fetch_molecuse,
-                          "due to can get enough molecuses sample in cloud", file=sys.stderr)
-                    my_robot.carrying_sample.mark_sample_need_to_be_deleted(sample_id_should_fetch_molecuse)
-                    print("CONNECT ", sample_id_should_fetch_molecuse)
+                elif sample_id_should_fetch_molecuse == -1 \
+                        and (need_to_upload_sample_for_can_fetch_enough_sample_downloading()
+                             or need_to_upload_sample_for_enough_sample_downloading()):
+                    needed_upload_id = get_sample_id_which_can_not_fetch_enough_molecuses()
+                    if needed_upload_id != -1:
+                        print("DEBUG: my robot upload sample id", needed_upload_id,
+                              "due to enough or can fetch enough molecuses sample in cloud", file=sys.stderr)
+                        my_robot.carrying_sample.mark_sample_need_to_be_deleted(needed_upload_id)
+                        print("CONNECT ", needed_upload_id)
 
 
 def download_sample():
@@ -1154,30 +1378,29 @@ def download_sample():
     global game
 
     if my_robot.carrying_sample.get_undiagnosed_sample_id() != -1 \
-            or my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot) != -1:
+            or my_robot.carrying_sample.get_being_uploaded_sample_id(my_robot, ai_robot) != -1:
         return
 
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
-    can_not_fetch_sample_id = get_sample_id_which_can_not_fetch_enough_molecuses()
 
-    if (my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'DIAGNOSIS') \
-            or (my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'DIAGNOSIS'):
-        if need_to_download_enough_molecuses_sample_from_cloud() \
-                and sample_id_should_fetch_molecuse == -1 \
-                and my_robot.carrying_sample.is_full() is False \
-                and can_not_fetch_sample_id == -1:
+    if (my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.DIAGNOSIS) \
+            or (my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.DIAGNOSIS):
+        if need_to_upload_sample_for_enough_sample_downloading() is False \
+                and need_to_upload_sample_for_can_fetch_enough_sample_downloading() is False \
+                and need_to_download_enough_molecuses_sample_from_cloud() \
+                and my_robot.carrying_sample.is_full() is False:
             sample_id = game.get_one_enough_molecules_sample_id_in_cloud_for_human_robot()
             print("DEBUG: my robot download sample id", sample_id,
                   "due to enough molecuses sample in cloud", file=sys.stderr)
             print("CONNECT ", sample_id)
-        elif need_to_download_which_can_get_enough_molecuses_sample_from_cloud():
-            if sample_id_should_fetch_molecuse == -1 \
-                    and can_not_fetch_sample_id == -1:
-                if my_robot.carrying_sample.is_full() is False:
-                    sample_id = game.get_one_sample_id_which_can_get_enough_molecuses_from_cloud()
-                    print("DEBUG: my robot download sample id", sample_id,
-                          "due to can get enough molecuses sample in cloud", file=sys.stderr)
-                    print("CONNECT ", sample_id)
+        elif need_to_upload_sample_for_enough_sample_downloading() is False \
+                and need_to_upload_sample_for_can_fetch_enough_sample_downloading() is False \
+                and need_to_download_which_can_get_enough_molecuses_sample_from_cloud() \
+                and my_robot.carrying_sample.is_full() is False:
+            sample_id = game.get_one_sample_id_which_can_get_enough_molecuses_from_cloud()
+            print("DEBUG: my robot download sample id", sample_id,
+                  "due to can get enough molecuses sample in cloud", file=sys.stderr)
+            print("CONNECT ", sample_id)
 
 
 def get_molecules():
@@ -1187,19 +1410,10 @@ def get_molecules():
 
     sample_id_can_fetch_enough_molecuse = get_sample_id_which_can_fetch_enough_molecuses()
     sample_id_should_fetch_molecuse = get_sample_id_which_can_fetch_more_molecuses()
+    type_of_molecuse_to_block_ai_robot = get_type_of_molecuse_to_block_ai_robot()
 
-    if (my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'MOLECULES') \
-            or (my_robot.previous_target == 'LABORATORY' and my_robot.current_target == 'MOLECULES') \
-            or (my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'MOLECULES'):
-        if sample_id_can_fetch_enough_molecuse != -1 and sample_id_should_fetch_molecuse != -1:
-            if can_fetch_more_molecules(sample_id_can_fetch_enough_molecuse):
-                fetch_molecules(sample_id_can_fetch_enough_molecuse)
-            else:
-                if my_robot.storage.is_full() is False \
-                        and my_robot.get_enough_molecuses_sample_size() == 0:
-                    print("DEBUG: my robot should wait due to not enough molecuse", file=sys.stderr)
-                    print("WAIT")
-        elif sample_id_can_fetch_enough_molecuse == -1 and sample_id_should_fetch_molecuse != -1:
+    if my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.MOLECULES:
+        if sample_id_should_fetch_molecuse != -1:
             if can_fetch_more_molecules(sample_id_should_fetch_molecuse):
                 fetch_molecules(sample_id_should_fetch_molecuse)
             else:
@@ -1207,6 +1421,28 @@ def get_molecules():
                         and my_robot.get_enough_molecuses_sample_size() == 0:
                     print("DEBUG: my robot should wait due to not enough molecuse", file=sys.stderr)
                     print("WAIT")
+    elif my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.MOLECULES:
+        if sample_id_should_fetch_molecuse != -1:
+            if can_fetch_more_molecules(sample_id_should_fetch_molecuse):
+                fetch_molecules(sample_id_should_fetch_molecuse)
+            else:
+                if my_robot.storage.is_full() is False \
+                        and my_robot.get_enough_molecuses_sample_size() == 0:
+                    print("DEBUG: my robot should wait due to not enough molecuse", file=sys.stderr)
+                    print("WAIT")
+        elif sample_id_should_fetch_molecuse == -1 \
+                and type_of_molecuse_to_block_ai_robot != '' \
+                and my_robot.carrying_sample.is_full() is False:
+            print("DEBUG: my robot fetch 1 molecuse ", type_of_molecuse_to_block_ai_robot,
+                  " to block ai robot", file=sys.stderr)
+            print("CONNECT", type_of_molecuse_to_block_ai_robot)
+    elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.MOLECULES:
+        if sample_id_should_fetch_molecuse != -1:
+            fetch_molecules(sample_id_should_fetch_molecuse)
+        elif type_of_molecuse_to_block_ai_robot != '':
+            print("DEBUG: my robot fetch 1 molecuse ", type_of_molecuse_to_block_ai_robot,
+                  " to block ai robot", file=sys.stderr)
+            print("CONNECT", type_of_molecuse_to_block_ai_robot)
 
 
 def extract_medicine():
@@ -1216,17 +1452,17 @@ def extract_medicine():
 
     sample_id = my_robot.get_one_enough_molecules_sample_id()
 
-    if my_robot.previous_target == 'MOLECULES' and my_robot.current_target == 'LABORATORY':
+    if my_robot.previous_target == Module.MOLECULES and my_robot.current_target == Module.LABORATORY:
         if sample_id != -1:
             print("DEBUG: my robot extract medicine for sample id", sample_id, file=sys.stderr)
             my_robot.carrying_sample.mark_sample_need_to_be_deleted(sample_id)
             print("CONNECT ", sample_id)
-    elif my_robot.previous_target == 'DIAGNOSIS' and my_robot.current_target == 'LABORATORY':
+    elif my_robot.previous_target == Module.DIAGNOSIS and my_robot.current_target == Module.LABORATORY:
         if sample_id != -1:
             print("DEBUG: my robot extract medicine for sample id", sample_id, file=sys.stderr)
             my_robot.mark_sample_need_to_be_deleted(sample_id)
             print("CONNECT ", sample_id)
-    elif my_robot.previous_target == 'LABORATORY' and my_robot.current_target == 'LABORATORY':
+    elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.LABORATORY:
         if sample_id != -1:
             print("DEBUG: my robot extract medicine for sample id", sample_id, file=sys.stderr)
             my_robot.carrying_sample.mark_sample_need_to_be_deleted(sample_id)
@@ -1258,19 +1494,19 @@ while True:
 
         if i == 0:
             current_target = target
-            print("Debug: my_robot previous_target is ", my_robot.previous_target,
+            print("my_robot previous_target is ", my_robot.previous_target,
                   ", current_target is ", my_robot.current_target,
                   file=sys.stderr)
-            print("Debug: my_robot eta is", eta,
+            print("my_robot eta is", eta,
                   ", score is", score,
                   file=sys.stderr)
-            print("Debug: my_robot expertise_a is", expertise_a,
+            print("my_robot expertise_a is", expertise_a,
                   ", expertise_b is", expertise_b,
                   ", expertise_c is", expertise_c,
                   ", expertise_d is", expertise_d,
                   ", expertise_e is", expertise_e,
                   file=sys.stderr)
-            print("Debug: storage.storage_a is", storage_a,
+            print("storage.storage_a is", storage_a,
                   ", storage.storage_b is", storage_b,
                   ", storage.storage_c is", storage_c,
                   ", storage.storage_d is", storage_d,
@@ -1304,14 +1540,14 @@ while True:
             ai_robot.expertise.expertise_c = expertise_c
             ai_robot.expertise.expertise_d = expertise_d
             ai_robot.expertise.expertise_e = expertise_e
-            print("Debug: ai_robot previous_target is ", ai_robot.previous_target,
+            print("ai_robot previous_target is ", ai_robot.previous_target,
                   ", current_target is ", ai_robot.current_target,
                   file=sys.stderr)
-            print("Debug: ai_robot eta is", eta, ", score is", score, file=sys.stderr)
-            print("Debug: ai_robot expertise_a is", expertise_a, ", expertise_b is", expertise_b, ", expertise_c is",
+            print("ai_robot eta is", eta, ", score is", score, file=sys.stderr)
+            print("ai_robot expertise_a is", expertise_a, ", expertise_b is", expertise_b, ", expertise_c is",
                   expertise_c,
                   ", expertise_d is", expertise_d, ", expertise_e is", expertise_e, file=sys.stderr)
-            print("Debug: storage.storage_a is", storage_a,
+            print("storage.storage_a is", storage_a,
                   ", storage.storage_b is", storage_b,
                   ", storage.storage_c is", storage_c,
                   ", storage.storage_d is", storage_d,
@@ -1321,7 +1557,7 @@ while True:
 
     sample_count = int(input())
 
-    print("Debug: sample_count", sample_count, file=sys.stderr)
+    print("sample_count", sample_count, file=sys.stderr)
 
     for i in range(sample_count):
         sample_id, carried_by, rank, expertise_gain, health, cost_a, cost_b, cost_c, cost_d, cost_e = input().split()
@@ -1340,15 +1576,16 @@ while True:
             my_robot.carrying_sample.add_sample(
                 Sample(game, sample_id, carried_by, health, rank, expertise_gain, total_cost, cost_a, cost_b, cost_c,
                        cost_d, cost_e))
-        else:
-            my_robot.carrying_sample.delete_sample(sample_id)
+
+        if carried_by == 1:
+            ai_robot.carrying_sample.add_sample(
+                Sample(game, sample_id, carried_by, health, rank, expertise_gain, total_cost, cost_a, cost_b, cost_c,
+                       cost_d, cost_e))
 
         if carried_by == -1:
             game.cloud_sample.add_sample(
                 Sample(game, sample_id, carried_by, health, rank, expertise_gain, total_cost, cost_a, cost_b, cost_c,
                        cost_d, cost_e))
-        else:
-            game.cloud_sample.delete_sample(sample_id)
 
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
