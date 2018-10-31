@@ -36,6 +36,39 @@ class Storage:
     def is_empty(self):
         return self.get_used_storage() == 0
 
+    def get_minimum_storage(self):
+        minimum_storage = self.storage_a
+
+        if minimum_storage == 0 \
+                or self.storage_b < minimum_storage:
+            minimum_storage = self.storage_b
+        if minimum_storage == 0 \
+                or self.storage_c < minimum_storage:
+            minimum_storage = self.storage_c
+        if minimum_storage == 0 \
+                or self.storage_d < minimum_storage:
+            minimum_storage = self.storage_d
+        if minimum_storage == 0 \
+                or self.storage_e < minimum_storage:
+            minimum_storage = self.storage_e
+        return minimum_storage
+
+    def get_maximum_storage(self):
+        maximum_storage = self.storage_a
+        if maximum_storage == 0 \
+                or self.storage_b > maximum_storage:
+            maximum_storage = self.storage_b
+        if maximum_storage == 0 \
+                or self.storage_c > maximum_storage:
+            maximum_storage = self.storage_c
+        if maximum_storage == 0 \
+                or self.storage_d > maximum_storage:
+            maximum_storage = self.storage_d
+        if maximum_storage == 0 \
+                or self.storage_e > maximum_storage:
+            maximum_storage = self.storage_e
+        return maximum_storage
+
     def debug_print(self, pre_fix):
         print("DEBUG: ", pre_fix,
               "storage.storage_a=", self.storage_a,
@@ -447,6 +480,58 @@ class Robot:
                     sample.cost_e - (unconsumed_storage.storage_e + self.expertise.expertise_e)
 
         return needed_storage
+
+    def get_best_block_storage_in_all_sample(self):
+        minimum_needed_storage = Storage()
+        storage_count = Storage()
+
+        for i in range(self.carrying_sample.size()):
+            sample = self.carrying_sample.get_sample_by_index(i)
+            needed_storage = self.get_sample_needed_storage(sample)
+
+            if needed_storage.storage_a > 0:
+                storage_count.storage_a = needed_storage.storage_a + 1
+                if minimum_needed_storage.storage_a == 0 \
+                        or needed_storage.storage_a < minimum_needed_storage.storage_a:
+                    minimum_needed_storage.storage_a = needed_storage.storage_a
+
+            if needed_storage.storage_b > 0:
+                storage_count.storage_b = needed_storage.storage_b + 1
+                if minimum_needed_storage.storage_b == 0 \
+                        or needed_storage.storage_b < minimum_needed_storage.storage_b:
+                    minimum_needed_storage.storage_b = needed_storage.storage_b
+
+            if needed_storage.storage_c > 0:
+                storage_count.storage_c = needed_storage.storage_c + 1
+                if minimum_needed_storage.storage_c == 0 \
+                        or needed_storage.storage_c < minimum_needed_storage.storage_c:
+                    minimum_needed_storage.storage_c = needed_storage.storage_c
+
+            if needed_storage.storage_d > 0:
+                storage_count.storage_d = needed_storage.storage_d + 1
+                if minimum_needed_storage.storage_d == 0 \
+                        or needed_storage.storage_d < minimum_needed_storage.storage_d:
+                    minimum_needed_storage.storage_d = needed_storage.storage_d
+
+            if needed_storage.storage_e > 0:
+                storage_count.storage_e = needed_storage.storage_e + 1
+                if minimum_needed_storage.storage_e == 0 \
+                        or needed_storage.storage_e < minimum_needed_storage.storage_e:
+                    minimum_needed_storage.storage_e = needed_storage.storage_e
+
+        max_count = storage_count.get_maximum_storage()
+        if storage_count.storage_a != max_count:
+            minimum_needed_storage.storage_a = 0
+        if storage_count.storage_b != max_count:
+            minimum_needed_storage.storage_b = 0
+        if storage_count.storage_c != max_count:
+            minimum_needed_storage.storage_c = 0
+        if storage_count.storage_d != max_count:
+            minimum_needed_storage.storage_d = 0
+        if storage_count.storage_e != max_count:
+            minimum_needed_storage.storage_e = 0
+
+        return minimum_needed_storage
 
     def may_spend_storage(self, storage_type, storage_number):
         if self.current_target != Module.MOLECULES and self.current_target != Module.LABORATORY:
@@ -1024,20 +1109,16 @@ def get_type_of_molecuse_to_block_ai_robot():
     if my_robot.storage.is_full() or my_robot.expertise.get_total_expertise() < 7:
         return ''
 
-    sample = ai_robot.carrying_sample.get_single_molecuse_sample()
-    if sample is None:
-        return ''
-
-    needed_storage = ai_robot.get_sample_needed_storage(sample)
+    needed_storage = ai_robot.get_best_block_storage_in_all_sample()
     if needed_storage.get_used_storage == 0:
         return ''
 
     my_robot_step_to_module = steps(my_robot.current_target, Module.MOLECULES)
     ai_robot_step_to_module = steps(ai_robot.current_target, Module.MOLECULES)
-    my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_a() - needed_storage.storage_a + 1
-    ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_a
 
     if 0 < needed_storage.storage_a <= game.get_available_molecuse_a():
+        my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_a() - needed_storage.storage_a + 1
+        ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_a
         if my_robot.storage.storage_a + (
                 game.get_available_molecuse_a() - needed_storage.storage_a + 1) <= game.get_max_molecuse_a() \
                 and my_robot.storage.get_used_storage() + (
@@ -1045,6 +1126,8 @@ def get_type_of_molecuse_to_block_ai_robot():
                 and my_robot_execution_step <= ai_robot_execution_step:
             return 'A'
     if 0 < needed_storage.storage_b <= game.get_available_molecuse_b():
+        my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_b() - needed_storage.storage_b + 1
+        ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_b
         if my_robot.storage.storage_b + (
                 game.get_available_molecuse_b() - needed_storage.storage_b + 1) <= game.get_max_molecuse_b() \
                 and my_robot.storage.get_used_storage() + (
@@ -1052,6 +1135,8 @@ def get_type_of_molecuse_to_block_ai_robot():
                 and my_robot_execution_step <= ai_robot_execution_step:
             return 'B'
     if 0 < needed_storage.storage_c <= game.get_available_molecuse_c():
+        my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_c() - needed_storage.storage_c + 1
+        ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_c
         if my_robot.storage.storage_c + (
                 game.get_available_molecuse_c() - needed_storage.storage_c + 1) <= game.get_max_molecuse_c() \
                 and my_robot.storage.get_used_storage() + (
@@ -1059,6 +1144,8 @@ def get_type_of_molecuse_to_block_ai_robot():
                 and my_robot_execution_step <= ai_robot_execution_step:
             return 'C'
     if 0 < needed_storage.storage_d <= game.get_available_molecuse_d():
+        my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_d() - needed_storage.storage_d + 1
+        ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_d
         if my_robot.storage.storage_d + (
                 game.get_available_molecuse_d() - needed_storage.storage_d + 1) <= game.get_max_molecuse_d() \
                 and my_robot.storage.get_used_storage() + (
@@ -1066,6 +1153,8 @@ def get_type_of_molecuse_to_block_ai_robot():
                 and my_robot_execution_step <= ai_robot_execution_step:
             return 'D'
     if 0 < needed_storage.storage_e <= game.get_available_molecuse_e():
+        my_robot_execution_step = my_robot_step_to_module + game.get_available_molecuse_e() - needed_storage.storage_e + 1
+        ai_robot_execution_step = ai_robot_step_to_module + needed_storage.storage_e
         if my_robot.storage.storage_e + (
                 game.get_available_molecuse_e() - needed_storage.storage_e + 1) <= game.get_max_molecuse_e() \
                 and my_robot.storage.get_used_storage() + (
@@ -1138,7 +1227,7 @@ def go_to_samples():
     elif my_robot.previous_target == Module.LABORATORY and my_robot.current_target == Module.LABORATORY:
         if sample_id_should_fetch_molecuse == -1 \
                 and my_robot.get_enough_molecuses_sample_size() == 0 \
-                and get_type_of_molecuse_to_block_ai_robot() == '':
+                and type_of_molecuse_to_block_ai_robot == '':
             print("DEBUG: my robot go to SAMPLES due to all enough sample are extracted "
                   "and NO sample can get enough molecuse", file=sys.stderr)
             print("GOTO SAMPLES")
